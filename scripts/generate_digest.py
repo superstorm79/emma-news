@@ -1,12 +1,13 @@
 #!/usr/bin/env python3
 """
 החדשות של אמה — Daily Digest Generator
+Uses Anthropic SDK with proper streaming to handle web search timeouts.
 """
 
 import os
 import json
 import datetime
-import requests
+import anthropic
 from pathlib import Path
 
 ANTHROPIC_API_KEY = os.environ["ANTHROPIC_API_KEY"]
@@ -18,7 +19,7 @@ def build_prompt(date_str: str, day_name: str) -> str:
 הקוראת היא ילדה בת 10 חיה בישראל, סקרנית, חכמה, ואוהבת לדעת מה קורה בעולם.
 התאריך היום הוא {day_name}, {date_str}.
 
-חפש את חדשות היום האמיתיות ואז כתוב את הגיליון.
+חפש את חדשות היום האמיתיות תחילה, ואז כתוב את הגיליון.
 
 ## עקרונות העריכה
 1. קרא לדברים בשמם — אם משהו קשה קורה, אמור זאת במשפט אחד ברור.
@@ -29,8 +30,8 @@ def build_prompt(date_str: str, day_name: str) -> str:
 6. כתוב כאילו היא חכמה ומסוגלת לשבת עם מורכבות.
 
 ## מבנה — צור בדיוק 5 סעיפים בסדר הזה:
-1. קרוב לבית (ישראל) — כתבה אחת
-2. מבט על העולם — 2-3 כתבות
+1. קרוב לבית (ישראל) — כתבה אחת על מה שקורה בישראל היום
+2. מבט על העולם — 2-3 כתבות על אירועים גלובליים
 3. גילוי היום (מדע/טבע/חלל) — כתבה אחת
 4. זרקור טכנולוגי — כתבה אחת
 5. פינת תרבות — כתבה אחת
@@ -200,36 +201,31 @@ def render_html(data: dict, date_str: str, day_name: str) -> str:
 
 
 def call_claude(prompt: str) -> dict:
-    response = requests.post(
-        "https://api.anthropic.com/v1/messages",
-        headers={
-            "x-api-key": ANTHROPIC_API_KEY,
-            "anthropic-version": "2023-06-01",
-            "content-type": "application/json",
-        },
-        json={
-            "model": "claude-opus-4-6",
-            "max_tokens": 4000,
-            
-            "messages": [{"role": "user", "content": prompt}]
-        },
-        timeout=180
-    )
-    response.raise_for_status()
-    result = response.json()
+    client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
 
-    # Collect all text blocks
+    # Use streaming so the connection stays alive during web search
     text = ""
-    for block in result.get("content", []):
-        if block.get("type") == "text":
-            text += block["text"]
+    with client.messages.stream(
+        model="claude-opus-4-6",
+        max_tokens=4000,
+        tools=[{"type": "web_search_20250305", "name": "web_search"}],
+        messages=[{"role": "user", "content": prompt}]
+    ) as stream:
+        for event in stream:
+            pass  # streaming keeps connection alive
+        # Get the final message after streaming completes
+        message = stream.get_final_message()
+
+    for block in message.content:
+        if hasattr(block, 'text'):
+            text += block.text
 
     print(f"Response length: {len(text)} chars")
     print(f"First 300 chars: {text[:300]}")
 
     text = text.strip()
 
-    # Strip markdown fences
+    # Strip markdown fences if present
     if "```" in text:
         start = text.find("```")
         end = text.rfind("```")
@@ -239,7 +235,7 @@ def call_claude(prompt: str) -> dict:
 
     text = text.strip()
 
-    # Extract JSON object — find outermost { }
+    # Extract JSON object
     start = text.find("{")
     end = text.rfind("}")
     if start != -1 and end != -1 and end > start:
