@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 החדשות של אמה — Daily Digest Generator
-Uses Anthropic SDK with proper streaming to handle web search timeouts.
+Reads docs/config.json for editorial settings set via the control panel.
 """
 
 import os
@@ -12,9 +12,77 @@ from pathlib import Path
 
 ANTHROPIC_API_KEY = os.environ["ANTHROPIC_API_KEY"]
 OUTPUT_DIR = Path("docs")
+CONFIG_FILE = Path("docs/config.json")
+
+SECTION_COLORS = {
+    "israel":  "#e8f4f0",
+    "world":   "#e8f4e8",
+    "science": "#e8eef8",
+    "tech":    "#f5f0e8",
+    "culture": "#f8e8f0",
+}
+
+DEFAULT_SECTIONS = [
+    {"id": "israel",  "icon": "🇮🇱", "label": "קרוב לבית",     "enabled": True},
+    {"id": "world",   "icon": "🌍",  "label": "מבט על העולם",   "enabled": True},
+    {"id": "science", "icon": "🔬",  "label": "גילוי היום",      "enabled": True},
+    {"id": "tech",    "icon": "💡",  "label": "זרקור טכנולוגי", "enabled": True},
+    {"id": "culture", "icon": "🎨",  "label": "פינת תרבות",     "enabled": True},
+]
 
 
-def build_prompt(date_str: str, day_name: str) -> str:
+def load_config() -> dict:
+    if CONFIG_FILE.exists():
+        try:
+            cfg = json.loads(CONFIG_FILE.read_text(encoding="utf-8"))
+            print(f"Loaded config: tone={cfg.get('tone',3)}, blocked={cfg.get('blocked_topics',[])}")
+            return cfg
+        except Exception as e:
+            print(f"Config parse error: {e}, using defaults")
+    return {"tone": 3, "sections": DEFAULT_SECTIONS, "blocked_topics": [], "special_note": ""}
+
+
+def build_prompt(date_str: str, day_name: str, cfg: dict) -> str:
+    tone = cfg.get("tone", 3)
+    blocked = cfg.get("blocked_topics", [])
+    note = cfg.get("special_note", "").strip()
+    sections = [s for s in cfg.get("sections", DEFAULT_SECTIONS) if s.get("enabled", True)]
+
+    tone_instructions = {
+        1: "כתוב גיליון קליל ומעודד. בחר סיפורים חיוביים, הישגים, גילויים מדעיים. אם יש חדשות קשות — דלג עליהן היום.",
+        2: "כתוב גיליון קצת יותר קל מהרגיל. העדף סיפורי תקווה ופעולה על פני עימותים.",
+        3: "כתוב גיליון מאוזן — עקרונות העריכה הרגילים.",
+        4: "כתוב גיליון כנה ומלא. כלול חדשות קשות כשהן חשובות, עם הקשר מלא.",
+        5: "כתוב בישרות מקסימלית. אל תסנן. ציין מה שקורה, מה ידוע ומה לא ידוע.",
+    }
+
+    sections_instruction = "\n".join([
+        f"{i+1}. {s['icon']} {s['label']}"
+        for i, s in enumerate(sections)
+    ])
+
+    blocked_instruction = ""
+    if blocked:
+        blocked_instruction = f"\n## נושאים לדילוג\nאל תכלול תוכן על: {', '.join(blocked)}\n"
+
+    note_instruction = ""
+    if note:
+        note_instruction = f"\n## הערה מיוחדת מההורה\n{note}\n"
+
+    # Build JSON template from enabled sections
+    section_colors = {
+        "israel": "#e8f4f0", "world": "#e8f4e8", "science": "#e8eef8",
+        "tech": "#f5f0e8", "culture": "#f8e8f0"
+    }
+    json_sections = []
+    for s in sections:
+        color = section_colors.get(s["id"], "#f0f0f0")
+        json_sections.append(
+            f'{{"id":"{s["id"]}","icon":"{s["icon"]}","label":"{s["label"]}","color":"{color}",'
+            f'"stories":[{{"tag":"תווית","tag_type":"{s["id"]}","headline":"כותרת","body":"טקסט"}}]}}'
+        )
+    json_template = '{"sections":[' + ','.join(json_sections) + '],"word_of_day":{"word":"מילה","definition":"הגדרה"},"think_question":"שאלה"}'
+
     return f"""אתה עורך של עיתון ילדים יומי בעברית בשם "החדשות של אמה".
 הקוראת היא ילדה בת 10 חיה בישראל, סקרנית, חכמה, ואוהבת לדעת מה קורה בעולם.
 התאריך היום הוא {day_name}, {date_str}.
@@ -29,22 +97,21 @@ def build_prompt(date_str: str, day_name: str) -> str:
 5. חיים רגילים קיימים לצד דברים קשים.
 6. כתוב כאילו היא חכמה ומסוגלת לשבת עם מורכבות.
 
-## מבנה — צור בדיוק 5 סעיפים בסדר הזה:
-1. קרוב לבית (ישראל) — כתבה אחת על מה שקורה בישראל היום
-2. מבט על העולם — 2-3 כתבות על אירועים גלובליים
-3. גילוי היום (מדע/טבע/חלל) — כתבה אחת
-4. זרקור טכנולוגי — כתבה אחת
-5. פינת תרבות — כתבה אחת
+## טון הגיליון להיום
+{tone_instructions[tone]}
+{blocked_instruction}{note_instruction}
+## מבנה — צור את הסעיפים הבאים בסדר הזה:
+{sections_instruction}
 
 בתוך כל כתבה השתמש ב:
 [HONEST]עובדה מרכזית כנה[/HONEST]
 [OPENQ]מה שעדיין לא ידוע[/OPENQ]
 
-## חשוב מאוד — החזר JSON בלבד, בלי שום טקסט לפני או אחרי, בלי ```json, רק JSON גולמי:
+## חשוב מאוד — החזר JSON בלבד, בלי שום טקסט לפני או אחרי, בלי ```json:
 
-{{"sections":[{{"id":"israel","icon":"🇮🇱","label":"קרוב לבית","color":"#e8f4f0","stories":[{{"tag":"ישראל","tag_type":"israel","headline":"כותרת","body":"טקסט"}}]}},{{"id":"world","icon":"🌍","label":"מבט על העולם","color":"#e8f4e8","stories":[{{"tag":"עולם","tag_type":"world","headline":"כותרת","body":"טקסט"}}]}},{{"id":"science","icon":"🔬","label":"גילוי היום","color":"#e8eef8","stories":[{{"tag":"מדע","tag_type":"science","headline":"כותרת","body":"טקסט"}}]}},{{"id":"tech","icon":"💡","label":"זרקור טכנולוגי","color":"#f5f0e8","stories":[{{"tag":"טכנולוגיה","tag_type":"tech","headline":"כותרת","body":"טקסט"}}]}},{{"id":"culture","icon":"🎨","label":"פינת תרבות","color":"#f8e8f0","stories":[{{"tag":"תרבות","tag_type":"culture","headline":"כותרת","body":"טקסט"}}]}}],"word_of_day":{{"word":"מילה","definition":"הגדרה"}},"think_question":"שאלה לשיחת ערב"}}
+{json_template}
 
-כתוב בעברית טבעית המתאימה לילדה בת 10 חכמה. זכור: JSON בלבד בתגובה."""
+כתוב בעברית טבעית המתאימה לילדה בת 10 חכמה. JSON בלבד בתגובה."""
 
 
 def render_story_body(body: str) -> str:
@@ -203,7 +270,6 @@ def render_html(data: dict, date_str: str, day_name: str) -> str:
 def call_claude(prompt: str) -> dict:
     client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
 
-    # Use streaming so the connection stays alive during web search
     text = ""
     with client.messages.stream(
         model="claude-opus-4-6",
@@ -212,8 +278,7 @@ def call_claude(prompt: str) -> dict:
         messages=[{"role": "user", "content": prompt}]
     ) as stream:
         for event in stream:
-            pass  # streaming keeps connection alive
-        # Get the final message after streaming completes
+            pass
         message = stream.get_final_message()
 
     for block in message.content:
@@ -221,11 +286,8 @@ def call_claude(prompt: str) -> dict:
             text += block.text
 
     print(f"Response length: {len(text)} chars")
-    print(f"First 300 chars: {text[:300]}")
-
     text = text.strip()
 
-    # Strip markdown fences if present
     if "```" in text:
         start = text.find("```")
         end = text.rfind("```")
@@ -234,14 +296,11 @@ def call_claude(prompt: str) -> dict:
             text = text.split("\n", 1)[1] if "\n" in text else text
 
     text = text.strip()
-
-    # Extract JSON object
     start = text.find("{")
     end = text.rfind("}")
     if start != -1 and end != -1 and end > start:
         text = text[start:end+1]
 
-    print(f"JSON to parse (first 200): {text[:200]}")
     return json.loads(text)
 
 
@@ -261,8 +320,10 @@ def main():
     date_str = f"{today.day} ב{months[today.month-1]} {today.year}"
     slug = today.strftime("%Y-%m-%d")
 
+    cfg = load_config()
+
     print(f"Generating digest for {date_str}...")
-    data = call_claude(build_prompt(date_str, day_name))
+    data = call_claude(build_prompt(date_str, day_name, cfg))
     html = render_html(data, date_str, day_name)
 
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
