@@ -1,0 +1,39 @@
+{
+  "tone": 4,
+  "tone_label": "🌦️ קצת יותר כבד מהרגיל",
+  "sections": [
+    {
+      "id": "israel",
+      "icon": "🇮🇱",
+      "label": "חדשות מישראל",
+      "enabled": true
+    },
+    {
+      "id": "world",
+      "icon": "🌍",
+      "label": "חדשות מהעולם",
+      "enabled": true
+    },
+    {
+      "id": "science",
+      "icon": "🔬",
+      "label": "גילוי היום",
+      "enabled": true
+    },
+    {
+      "id": "tech",
+      "icon": "💡",
+      "label": "זרקור טכנולוגי",
+      "enabled": true
+    },
+    {
+      "id": "culture",
+      "icon": "🎨",
+      "label": "פינת תרבות",
+      "enabled": true
+    }
+  ],
+  "blocked_topics": [],
+  "special_note": "",
+  "updated_at": "2026-03-01T18:32:45.901Z"
+}
