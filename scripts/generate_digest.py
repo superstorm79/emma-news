@@ -267,8 +267,16 @@ def render_html(data: dict, date_str: str, day_name: str) -> str:
 </html>"""
 
 
-def call_claude(prompt: str) -> dict:
+def call_claude(prompt: str, retry: bool = False) -> dict:
     client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
+
+    # On retry, add extra instruction about JSON safety
+    if retry:
+        prompt += """
+
+חשוב מאוד: בטקסט העברי, אל תשתמש במרכאות כפולות (") בתוך ערכי JSON.
+השתמש במקום זה במרכאות עבריות (״) או בגרשיים (') בלבד.
+ודא שה-JSON תקין לחלוטין."""
 
     text = ""
     with client.messages.stream(
@@ -301,7 +309,14 @@ def call_claude(prompt: str) -> dict:
     if start != -1 and end != -1 and end > start:
         text = text[start:end+1]
 
-    return json.loads(text)
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError as e:
+        if not retry:
+            print(f"JSON parse failed ({e}), retrying with stricter prompt...")
+            return call_claude(prompt, retry=True)
+        else:
+            raise ValueError(f"Could not parse JSON after retry: {e}")
 
 
 def main():
