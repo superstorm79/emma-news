@@ -1,8 +1,6 @@
 #!/usr/bin/env python3
 """
 החדשות של אמה — Daily Digest Generator
-Calls Claude API to generate a Hebrew news digest for a 10-year-old
-and publishes it as an HTML file to GitHub Pages.
 """
 
 import os
@@ -20,96 +18,32 @@ def build_prompt(date_str: str, day_name: str) -> str:
 הקוראת היא ילדה בת 10 חיה בישראל, סקרנית, חכמה, ואוהבת לדעת מה קורה בעולם.
 התאריך היום הוא {day_name}, {date_str}.
 
+חפש את חדשות היום האמיתיות ואז כתוב את הגיליון.
+
 ## עקרונות העריכה
-1. **קרא לדברים בשמם** — אם משהו קשה קורה, אמור זאת במשפט אחד ברור.
-2. **פנה לתגובה האנושית** — אחרי שמת את הקושי, תמיד ענה: מה אנשים עושים בנוגע לזה?
-3. **אין מספרי הרוגים או פצועים** — לעולם. ניתן לציין שיש עימות; לא את הפרטים הדמיים.
-4. **אי-וודאות היא כנה** — "אנחנו עדיין לא יודעים כיצד זה יסתיים" הוא משפט שלם ומכובד.
-5. **חיים רגילים קיימים לצד דברים קשים** — אם שני הדברים אמיתיים, אמור שניהם.
-6. **היא הקוראת, לא המוגנת** — כתוב כאילו היא חכמה, סקרנית ומסוגלת לשבת עם מורכבות.
+1. קרא לדברים בשמם — אם משהו קשה קורה, אמור זאת במשפט אחד ברור.
+2. פנה לתגובה האנושית — מה אנשים עושים בנוגע לזה?
+3. אין מספרי הרוגים או פצועים לעולם.
+4. אי-וודאות היא כנה — "אנחנו עדיין לא יודעים" הוא משפט מכובד.
+5. חיים רגילים קיימים לצד דברים קשים.
+6. כתוב כאילו היא חכמה ומסוגלת לשבת עם מורכבות.
 
-## מבנה הגיליון
-צור בדיוק את הסעיפים הבאים בסדר הזה:
+## מבנה — צור בדיוק 5 סעיפים בסדר הזה:
+1. קרוב לבית (ישראל) — כתבה אחת
+2. מבט על העולם — 2-3 כתבות
+3. גילוי היום (מדע/טבע/חלל) — כתבה אחת
+4. זרקור טכנולוגי — כתבה אחת
+5. פינת תרבות — כתבה אחת
 
-### 1. 🇮🇱 קרוב לבית
-כתבה אחת על ישראל. עדיפות: חדשות שמשפיעות על חיי היומיום, פוליטיקה מקומית, הישגים ישראליים, אירועי תרבות/ספורט. אם המצב הביטחוני רלוונטי — ציין אותו בכנות אבל ללא גרפיקה.
+בתוך כל כתבה השתמש ב:
+[HONEST]עובדה מרכזית כנה[/HONEST]
+[OPENQ]מה שעדיין לא ידוע[/OPENQ]
 
-### 2. 🌍 מבט על העולם
-2-3 כתבות על אירועים גלובליים חשובים. כלול עימותים ופוליטיקה אם הם עיקר החדשות — אבל תמיד עם מסגרת של "מה אנשים עושים בנוגע לזה".
+## חשוב מאוד — החזר JSON בלבד, בלי שום טקסט לפני או אחרי, בלי ```json, רק JSON גולמי:
 
-### 3. 🔬 גילוי היום
-1-2 כתבות מדע, חלל, טבע, בעלי חיים, ארכאולוגיה.
+{{"sections":[{{"id":"israel","icon":"🇮🇱","label":"קרוב לבית","color":"#e8f4f0","stories":[{{"tag":"ישראל","tag_type":"israel","headline":"כותרת","body":"טקסט"}}]}},{{"id":"world","icon":"🌍","label":"מבט על העולם","color":"#e8f4e8","stories":[{{"tag":"עולם","tag_type":"world","headline":"כותרת","body":"טקסט"}}]}},{{"id":"science","icon":"🔬","label":"גילוי היום","color":"#e8eef8","stories":[{{"tag":"מדע","tag_type":"science","headline":"כותרת","body":"טקסט"}}]}},{{"id":"tech","icon":"💡","label":"זרקור טכנולוגי","color":"#f5f0e8","stories":[{{"tag":"טכנולוגיה","tag_type":"tech","headline":"כותרת","body":"טקסט"}}]}},{{"id":"culture","icon":"🎨","label":"פינת תרבות","color":"#f8e8f0","stories":[{{"tag":"תרבות","tag_type":"culture","headline":"כותרת","body":"טקסט"}}]}}],"word_of_day":{{"word":"מילה","definition":"הגדרה"}},"think_question":"שאלה לשיחת ערב"}}
 
-### 4. 💡 זרקור טכנולוגי
-כתבה אחת על טכנולוגיה — ממוקדת במה שהיא עושה לאנשים, לא רק מה היא.
-
-### 5. 🎨 פינת תרבות
-כתבה אחת — ספר, סרט, אמן, אירוע תרבותי, המצאה יצירתית.
-
-### 6. 💬 מילה ותהייה
-- **מילה של היום**: מילה אחת מהכתבות של היום עם הגדרה פשוטה ומעניינת
-- **שאלה לשיחת ערב**: שאלה פתוחה אחת שמזמינה שיחה משפחתית עמוקה
-
-## כלי עיצוב לתוכן
-- [HONEST]טקסט[/HONEST] — עובדה מרכזית כנה
-- [OPENQ]טקסט[/OPENQ] — מה שעדיין לא ידוע
-
-## פורמט הפלט
-החזר JSON בלבד, ללא שום טקסט נוסף:
-
-{{
-  "sections": [
-    {{
-      "id": "israel",
-      "icon": "🇮🇱",
-      "label": "קרוב לבית",
-      "color": "#e8f4f0",
-      "stories": [
-        {{
-          "tag": "תווית קצרה",
-          "tag_type": "israel",
-          "headline": "כותרת הכתבה",
-          "body": "טקסט הכתבה"
-        }}
-      ]
-    }},
-    {{
-      "id": "world",
-      "icon": "🌍",
-      "label": "מבט על העולם",
-      "color": "#e8f4e8",
-      "stories": []
-    }},
-    {{
-      "id": "science",
-      "icon": "🔬",
-      "label": "גילוי היום",
-      "color": "#e8eef8",
-      "stories": []
-    }},
-    {{
-      "id": "tech",
-      "icon": "💡",
-      "label": "זרקור טכנולוגי",
-      "color": "#f5f0e8",
-      "stories": []
-    }},
-    {{
-      "id": "culture",
-      "icon": "🎨",
-      "label": "פינת תרבות",
-      "color": "#f8e8f0",
-      "stories": []
-    }}
-  ],
-  "word_of_day": {{
-    "word": "המילה",
-    "definition": "הגדרה"
-  }},
-  "think_question": "השאלה לשיחת ערב"
-}}
-
-חפש חדשות אמיתיות של היום. כתוב בעברית טבעית המתאימה לילדה בת 10 חכמה."""
+כתוב בעברית טבעית המתאימה לילדה בת 10 חכמה. זכור: JSON בלבד בתגובה."""
 
 
 def render_story_body(body: str) -> str:
@@ -161,7 +95,7 @@ def render_html(data: dict, date_str: str, day_name: str) -> str:
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>החדשות של אמה – {date_str}</title>
+<title>החדשות של אמה - {date_str}</title>
 <link href="https://fonts.googleapis.com/css2?family=Frank+Ruhl+Libre:wght@400;700;900&family=Heebo:wght@300;400;500;700&display=swap" rel="stylesheet">
 <style>
   :root {{
@@ -227,7 +161,7 @@ def render_html(data: dict, date_str: str, day_name: str) -> str:
   <div class="masthead-date">{day_name}, {date_str}</div>
   <hr class="rule-thin">
   <h1>החדשות <span>של אמה</span></h1>
-  <div class="masthead-sub">כל החדשות שחשוב לדעת — רק בשבילך</div>
+  <div class="masthead-sub">כל החדשות שחשוב לדעת - רק בשבילך</div>
   <hr class="rule-thin">
   <div class="masthead-meta"><span>מהדורה אישית</span><span>גיליון יומי</span></div>
 </div>
@@ -245,7 +179,7 @@ def render_html(data: dict, date_str: str, day_name: str) -> str:
         <div class="definition">{word['definition']}</div>
       </div>
       <div class="think-box">
-        <div class="label">משהו לחשוב עליו — לשיחת ערב</div>
+        <div class="label">משהו לחשוב עליו - לשיחת ערב</div>
         <p>{think}</p>
       </div>
     </div>
@@ -284,16 +218,34 @@ def call_claude(prompt: str) -> dict:
     response.raise_for_status()
     result = response.json()
 
+    # Collect all text blocks
     text = ""
     for block in result.get("content", []):
         if block.get("type") == "text":
             text += block["text"]
 
-    text = text.strip()
-    if text.startswith("```"):
-        text = text.split("\n", 1)[1]
-        text = text.rsplit("```", 1)[0]
+    print(f"Response length: {len(text)} chars")
+    print(f"First 300 chars: {text[:300]}")
 
+    text = text.strip()
+
+    # Strip markdown fences
+    if "```" in text:
+        start = text.find("```")
+        end = text.rfind("```")
+        if start != end:
+            text = text[start:end]
+            text = text.split("\n", 1)[1] if "\n" in text else text
+
+    text = text.strip()
+
+    # Extract JSON object — find outermost { }
+    start = text.find("{")
+    end = text.rfind("}")
+    if start != -1 and end != -1 and end > start:
+        text = text[start:end+1]
+
+    print(f"JSON to parse (first 200): {text[:200]}")
     return json.loads(text)
 
 
@@ -320,8 +272,7 @@ def main():
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     (OUTPUT_DIR / f"{slug}.html").write_text(html, encoding="utf-8")
     (OUTPUT_DIR / "index.html").write_text(html, encoding="utf-8")
-
-    print(f"Done! Published to docs/{slug}.html and docs/index.html")
+    print(f"Done! Published to docs/{slug}.html")
 
 
 if __name__ == "__main__":
