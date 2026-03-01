@@ -83,58 +83,96 @@ def step1_search_news(date_str, day_name, cfg):
 
 
 def step2_write_digest(news_summary, date_str, day_name, cfg):
-    """Write the digest as clean JSON based on the news summary. No web search."""
+    """Write the digest using tool_use for guaranteed structured output."""
     client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
 
     tone = cfg.get("tone", 3)
     note = cfg.get("special_note", "").strip()
     sections = [s for s in cfg.get("sections", DEFAULT_SECTIONS) if s.get("enabled", True)]
+    note_line = f"הערה מיוחדת: {note}" if note else ""
 
-    section_json = ",".join([
-        f'{{"id":"{s["id"]}","icon":"{s["icon"]}","label":"{s["label"]}",'
-        f'"color":"{SECTION_COLORS.get(s["id"],"#f0f0f0")}",'
-        f'"stories":[{{"tag":"נושא","tag_type":"{s["id"]}","headline":"כותרת","body":"תוכן"}}]}}'
+    # Define the output schema as a tool — Claude MUST call this tool,
+    # guaranteeing perfectly structured JSON with no formatting errors
+    tool = {
+        "name": "publish_digest",
+        "description": "פרסם את גיליון החדשות של אמה",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "sections": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "id":    {"type": "string"},
+                            "icon":  {"type": "string"},
+                            "label": {"type": "string"},
+                            "color": {"type": "string"},
+                            "stories": {
+                                "type": "array",
+                                "items": {
+                                    "type": "object",
+                                    "properties": {
+                                        "tag":      {"type": "string"},
+                                        "tag_type": {"type": "string"},
+                                        "headline": {"type": "string"},
+                                        "body":     {"type": "string"},
+                                    },
+                                    "required": ["tag","tag_type","headline","body"]
+                                }
+                            }
+                        },
+                        "required": ["id","icon","label","color","stories"]
+                    }
+                },
+                "word_of_day": {
+                    "type": "object",
+                    "properties": {
+                        "word":       {"type": "string"},
+                        "definition": {"type": "string"},
+                    },
+                    "required": ["word","definition"]
+                },
+                "think_question": {"type": "string"},
+            },
+            "required": ["sections","word_of_day","think_question"]
+        }
+    }
+
+    section_list = "\n".join([
+        f"- {s['icon']} {s['label']} (id: {s['id']}, color: {SECTION_COLORS.get(s['id'],'#f0f0f0')})"
         for s in sections
     ])
-
-    note_line = f"הערה: {note}" if note else ""
 
     prompt = f"""אתה עורך עיתון ילדים בעברית. הקוראת היא ילדה בת 10 חכמה מישראל.
 תאריך: {day_name}, {date_str}. טון: {TONE_MAP[tone]}. {note_line}
 
-להלן תקציר חדשות היום:
+חדשות היום:
 {news_summary}
 
-כתוב גיליון ילדים מבוסס על החדשות האלה.
+כתוב גיליון ילדים עבור הסעיפים הבאים:
+{section_list}
+
 עקרונות: קרא לדברים בשמם. פנה לתגובה האנושית. אל תציין נפגעים. אי-ודאות היא כנה.
-השתמש ב-[HONEST]טקסט[/HONEST] לעובדה מרכזית ו-[OPENQ]טקסט[/OPENQ] למה שלא ידוע.
+בשדה body: השתמש ב-[HONEST]טקסט[/HONEST] לעובדה מרכזית, ו-[OPENQ]טקסט[/OPENQ] למה שלא ידוע.
 
-החזר JSON בלבד. אסור להשתמש במרכאות " בתוך ערכי הטקסט — השתמש ב-׳ בלבד.
-
-{{"sections":[{section_json}],"word_of_day":{{"word":"מילה","definition":"הגדרה"}},"think_question":"שאלה"}}"""
+קרא לפונקציה publish_digest עם כל הסעיפים."""
 
     response = client.messages.create(
         model="claude-sonnet-4-6",
         max_tokens=3000,
+        tools=[tool],
+        tool_choice={"type": "any"},  # force Claude to use the tool
         messages=[{"role": "user", "content": prompt}]
     )
 
-    text = response.content[0].text.strip()
-    print(f"Digest text: {len(text)} chars")
+    # Extract the tool input — this is guaranteed valid JSON by the SDK
+    for block in response.content:
+        if block.type == "tool_use" and block.name == "publish_digest":
+            print(f"Tool call received successfully")
+            return block.input
 
-    if "```" in text:
-        start = text.find("```")
-        end   = text.rfind("```")
-        if start != end:
-            text = text[start:end].split("\n", 1)[1]
-
-    text = text.strip()
-    start = text.find("{")
-    end   = text.rfind("}")
-    if start != -1 and end > start:
-        text = text[start:end+1]
-
-    return json.loads(text)
+    raise ValueError("Claude did not call publish_digest tool")
 
 
 def render_story_body(body):
