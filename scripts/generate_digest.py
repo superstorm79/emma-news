@@ -287,6 +287,10 @@ def main():
     print("Step 1: Searching today's news...")
     news_summary = step1_search_news(date_str, day_name, cfg)
 
+    # Wait for rate limit window to reset before second API call
+    print("Waiting 60s for rate limit to reset...")
+    time.sleep(60)
+
     # Step 2: write digest as JSON (no web search, fast and reliable)
     print("Step 2: Writing digest...")
     data = step2_write_digest(news_summary, date_str, day_name, cfg)
