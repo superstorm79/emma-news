@@ -1,0 +1,761 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>עורך החדשות של אמה</title>
+<link href="https://fonts.googleapis.com/css2?family=Frank+Ruhl+Libre:wght@400;700;900&family=Heebo:wght@300;400;500;700;900&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0f0e0c;
+    --surface: #1a1916;
+    --surface2: #242220;
+    --border: #2e2c28;
+    --ink: #f0ebe0;
+    --ink-mid: #9a9080;
+    --ink-dim: #4a4840;
+    --accent: #e8612c;
+    --accent-dim: #7a3018;
+    --accent-glow: rgba(232,97,44,0.15);
+    --green: #4caf7d;
+    --green-dim: #1a3d2a;
+    --yellow: #f0c040;
+    --red: #e05040;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: 'Heebo', sans-serif;
+    font-size: 14px;
+    line-height: 1.6;
+    direction: rtl;
+    min-height: 100vh;
+  }
+
+  /* ── LOGIN SCREEN ── */
+  #login-screen {
+    position: fixed;
+    inset: 0;
+    background: var(--bg);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 100;
+    flex-direction: column;
+    gap: 32px;
+  }
+
+  .login-logo {
+    font-family: 'Frank Ruhl Libre', serif;
+    font-size: 48px;
+    font-weight: 900;
+    color: var(--ink);
+    text-align: center;
+    line-height: 1.1;
+  }
+
+  .login-logo span { color: var(--accent); }
+
+  .login-sub {
+    font-size: 13px;
+    color: var(--ink-mid);
+    text-align: center;
+    margin-top: -20px;
+  }
+
+  .login-box {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 28px 32px;
+    width: 320px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .login-box label {
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--ink-mid);
+    letter-spacing: 0.08em;
+  }
+
+  .login-box input {
+    width: 100%;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 10px 14px;
+    color: var(--ink);
+    font-family: 'Heebo', sans-serif;
+    font-size: 15px;
+    outline: none;
+    transition: border-color 0.2s;
+    direction: ltr;
+    text-align: center;
+    letter-spacing: 0.2em;
+  }
+
+  .login-box input:focus { border-color: var(--accent); }
+
+  .login-error {
+    color: var(--red);
+    font-size: 12px;
+    text-align: center;
+    display: none;
+  }
+
+  /* ── MAIN APP ── */
+  #app { display: none; }
+
+  .topbar {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 14px 28px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+  }
+
+  .topbar-title {
+    font-family: 'Frank Ruhl Libre', serif;
+    font-size: 20px;
+    font-weight: 900;
+    color: var(--ink);
+  }
+
+  .topbar-title span { color: var(--accent); }
+
+  .topbar-actions { display: flex; gap: 10px; align-items: center; }
+
+  .btn {
+    padding: 8px 18px;
+    border-radius: 6px;
+    font-family: 'Heebo', sans-serif;
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+    border: none;
+    transition: all 0.15s;
+  }
+
+  .btn-primary {
+    background: var(--accent);
+    color: white;
+  }
+  .btn-primary:hover { background: #f07040; transform: translateY(-1px); }
+
+  .btn-ghost {
+    background: transparent;
+    color: var(--ink-mid);
+    border: 1px solid var(--border);
+  }
+  .btn-ghost:hover { color: var(--ink); border-color: var(--ink-mid); }
+
+  .save-status {
+    font-size: 12px;
+    color: var(--green);
+    opacity: 0;
+    transition: opacity 0.3s;
+  }
+  .save-status.show { opacity: 1; }
+
+  /* ── LAYOUT ── */
+  .main {
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 32px 24px 80px;
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+  }
+
+  /* ── CARDS ── */
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+  }
+
+  .card-header {
+    padding: 16px 22px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .card-icon { font-size: 20px; }
+
+  .card-title {
+    font-family: 'Frank Ruhl Libre', serif;
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--ink);
+  }
+
+  .card-desc {
+    font-size: 12px;
+    color: var(--ink-mid);
+    margin-right: auto;
+  }
+
+  .card-body { padding: 20px 22px; }
+
+  /* ── TONE SLIDER ── */
+  .tone-track {
+    position: relative;
+    height: 48px;
+    display: flex;
+    align-items: center;
+    margin: 8px 0;
+  }
+
+  .tone-labels {
+    display: flex;
+    justify-content: space-between;
+    font-size: 11px;
+    color: var(--ink-mid);
+    margin-bottom: 6px;
+  }
+
+  input[type="range"] {
+    -webkit-appearance: none;
+    width: 100%;
+    height: 4px;
+    border-radius: 2px;
+    background: linear-gradient(to left,
+      #e05040 0%, #f0c040 50%, #4caf7d 100%);
+    outline: none;
+  }
+
+  input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    background: var(--ink);
+    cursor: pointer;
+    border: 3px solid var(--accent);
+    box-shadow: 0 0 12px var(--accent-glow);
+    transition: transform 0.1s;
+  }
+
+  input[type="range"]::-webkit-slider-thumb:hover { transform: scale(1.2); }
+
+  .tone-value {
+    text-align: center;
+    font-size: 13px;
+    color: var(--accent);
+    font-weight: 700;
+    margin-top: 6px;
+  }
+
+  /* ── SECTIONS LIST ── */
+  .sections-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .section-row {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px 16px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    cursor: grab;
+    transition: border-color 0.2s, background 0.2s;
+    user-select: none;
+  }
+
+  .section-row:active { cursor: grabbing; }
+  .section-row.dragging { opacity: 0.4; }
+  .section-row.drag-over { border-color: var(--accent); background: var(--accent-glow); }
+
+  .drag-handle {
+    color: var(--ink-dim);
+    font-size: 16px;
+    cursor: grab;
+    flex-shrink: 0;
+  }
+
+  .section-icon-badge { font-size: 22px; flex-shrink: 0; }
+
+  .section-info { flex: 1; }
+
+  .section-name {
+    font-weight: 700;
+    font-size: 14px;
+    color: var(--ink);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .section-name input {
+    background: transparent;
+    border: none;
+    border-bottom: 1px solid var(--border);
+    color: var(--ink);
+    font-family: 'Heebo', sans-serif;
+    font-weight: 700;
+    font-size: 14px;
+    outline: none;
+    width: 160px;
+    padding: 2px 4px;
+    direction: rtl;
+  }
+
+  .section-name input:focus { border-bottom-color: var(--accent); }
+
+  /* TOGGLE */
+  .toggle {
+    position: relative;
+    width: 44px;
+    height: 24px;
+    flex-shrink: 0;
+  }
+
+  .toggle input { opacity: 0; width: 0; height: 0; }
+
+  .toggle-slider {
+    position: absolute;
+    inset: 0;
+    background: var(--border);
+    border-radius: 24px;
+    cursor: pointer;
+    transition: background 0.2s;
+  }
+
+  .toggle-slider::before {
+    content: '';
+    position: absolute;
+    width: 18px;
+    height: 18px;
+    right: 3px;
+    top: 3px;
+    background: var(--ink-mid);
+    border-radius: 50%;
+    transition: transform 0.2s, background 0.2s;
+  }
+
+  .toggle input:checked + .toggle-slider { background: var(--green-dim); }
+  .toggle input:checked + .toggle-slider::before {
+    transform: translateX(-20px);
+    background: var(--green);
+  }
+
+  /* ── BLOCKED TOPICS ── */
+  .tags-container {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 12px;
+    min-height: 32px;
+  }
+
+  .topic-tag {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 4px 12px;
+    font-size: 12px;
+    color: var(--ink-mid);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .topic-tag .remove {
+    cursor: pointer;
+    color: var(--ink-dim);
+    font-size: 14px;
+    line-height: 1;
+    transition: color 0.15s;
+  }
+  .topic-tag .remove:hover { color: var(--red); }
+
+  .tag-input-row {
+    display: flex;
+    gap: 8px;
+  }
+
+  .tag-input-row input {
+    flex: 1;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 8px 12px;
+    color: var(--ink);
+    font-family: 'Heebo', sans-serif;
+    font-size: 13px;
+    outline: none;
+    direction: rtl;
+    transition: border-color 0.2s;
+  }
+
+  .tag-input-row input:focus { border-color: var(--accent); }
+
+  .tag-input-row input::placeholder { color: var(--ink-dim); }
+
+  /* ── TEXTAREA ── */
+  .note-area {
+    width: 100%;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 14px 16px;
+    color: var(--ink);
+    font-family: 'Heebo', sans-serif;
+    font-size: 14px;
+    line-height: 1.7;
+    resize: vertical;
+    min-height: 100px;
+    outline: none;
+    direction: rtl;
+    transition: border-color 0.2s;
+  }
+
+  .note-area:focus { border-color: var(--accent); }
+  .note-area::placeholder { color: var(--ink-dim); }
+
+  /* ── CONFIG EXPORT ── */
+  .config-box {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px;
+    font-family: monospace;
+    font-size: 12px;
+    color: var(--ink-mid);
+    white-space: pre;
+    overflow-x: auto;
+    line-height: 1.8;
+    max-height: 280px;
+    overflow-y: auto;
+  }
+
+  .copy-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px;
+  }
+
+  .copy-label {
+    font-size: 11px;
+    color: var(--ink-dim);
+    letter-spacing: 0.06em;
+    font-weight: 700;
+  }
+
+  /* ── INSTRUCTIONS ── */
+  .instructions {
+    background: var(--accent-glow);
+    border: 1px solid var(--accent-dim);
+    border-radius: 8px;
+    padding: 16px 20px;
+    font-size: 13px;
+    color: var(--ink-mid);
+    line-height: 1.8;
+  }
+
+  .instructions strong { color: var(--accent); }
+
+  ol { padding-right: 20px; }
+  ol li { margin-bottom: 6px; }
+
+  /* ── RESPONSIVE ── */
+  @media (max-width: 600px) {
+    .topbar { padding: 12px 16px; }
+    .main { padding: 20px 12px 60px; }
+    .card-body { padding: 16px; }
+    .topbar-title { font-size: 16px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- LOGIN -->
+<div id="login-screen">
+  <div>
+    <div class="login-logo">עורך החדשות<br><span>של אמה</span></div>
+    <div class="login-sub">פאנל עריכה פרטי</div>
+  </div>
+  <div class="login-box">
+    <label>סיסמה</label>
+    <input type="password" id="password-input" placeholder="••••••••" onkeydown="if(event.key==='Enter')checkPassword()">
+    <button class="btn btn-primary" onclick="checkPassword()">כניסה</button>
+    <div class="login-error" id="login-error">סיסמה שגויה. נסה שוב.</div>
+  </div>
+</div>
+
+<!-- APP -->
+<div id="app">
+
+  <div class="topbar">
+    <div class="topbar-title">עורך החדשות <span>של אמה</span></div>
+    <div class="topbar-actions">
+      <span class="save-status" id="save-status">✓ הועתק ללוח</span>
+      <button class="btn btn-ghost" onclick="copyConfig()">העתק JSON</button>
+      <button class="btn btn-primary" onclick="saveAndCopy()">💾 שמור וצא</button>
+    </div>
+  </div>
+
+  <div class="main">
+
+    <!-- TONE -->
+    <div class="card">
+      <div class="card-header">
+        <span class="card-icon">🎚️</span>
+        <span class="card-title">טון הגיליון</span>
+        <span class="card-desc">כמה כבד התוכן היום?</span>
+      </div>
+      <div class="card-body">
+        <div class="tone-labels">
+          <span>🌈 קליל ומעודד</span>
+          <span>⚖️ מאוזן</span>
+          <span>🌍 מציאות מלאה</span>
+        </div>
+        <div class="tone-track">
+          <input type="range" min="1" max="5" value="3" id="tone-slider" oninput="updateTone()">
+        </div>
+        <div class="tone-value" id="tone-label">⚖️ מאוזן — ברירת המחדל</div>
+      </div>
+    </div>
+
+    <!-- SECTIONS -->
+    <div class="card">
+      <div class="card-header">
+        <span class="card-icon">📋</span>
+        <span class="card-title">סעיפים</span>
+        <span class="card-desc">גרור לסידור מחדש · שנה שם · הפעל/כבה</span>
+      </div>
+      <div class="card-body">
+        <div class="sections-list" id="sections-list"></div>
+      </div>
+    </div>
+
+    <!-- BLOCKED TOPICS -->
+    <div class="card">
+      <div class="card-header">
+        <span class="card-icon">🚫</span>
+        <span class="card-title">נושאים לדילוג השבוע</span>
+        <span class="card-desc">תוכן שלא יופיע בגיליון</span>
+      </div>
+      <div class="card-body">
+        <div class="tags-container" id="blocked-tags"></div>
+        <div class="tag-input-row">
+          <input type="text" id="block-input" placeholder="הקלד נושא ולחץ Enter... (למשל: רעידות אדמה)" onkeydown="if(event.key==='Enter')addBlockedTopic()">
+          <button class="btn btn-ghost" onclick="addBlockedTopic()">+ הוסף</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- TODAY'S NOTE -->
+    <div class="card">
+      <div class="card-header">
+        <span class="card-icon">✏️</span>
+        <span class="card-title">הערה לגיליון הבא</span>
+        <span class="card-desc">הוראות חד-פעמיות לקלוד</span>
+      </div>
+      <div class="card-body">
+        <textarea class="note-area" id="special-note" placeholder="לדוגמה: אמה עברה שבוע קשה, תהיה עדין יותר היום. / היא מאוד מעוניינת בחלל השבוע, תדגיש סיפורים מהתחום."></textarea>
+      </div>
+    </div>
+
+    <!-- CONFIG OUTPUT -->
+    <div class="card">
+      <div class="card-header">
+        <span class="card-icon">⚙️</span>
+        <span class="card-title">config.json — להעלאה ל-GitHub</span>
+      </div>
+      <div class="card-body">
+        <div class="instructions">
+          <strong>איך להשתמש:</strong>
+          <ol>
+            <li>לחץ <strong>"שמור וצא"</strong> — הJSON יועתק ללוח</li>
+            <li>עבור למאגר GitHub שלך → קובץ <strong>docs/config.json</strong></li>
+            <li>לחץ על עיפרון ✏️ → מחק הכל → הדבק → Commit</li>
+            <li>הגיליון הבא ייווצר לפי ההגדרות החדשות</li>
+          </ol>
+        </div>
+        <br>
+        <div class="copy-row">
+          <span class="copy-label">JSON OUTPUT</span>
+          <button class="btn btn-ghost" style="font-size:11px; padding:4px 10px" onclick="copyConfig()">העתק</button>
+        </div>
+        <div class="config-box" id="config-output"></div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+// ── PASSWORD ──
+// Change this to your own password!
+const PASSWORD = "emma2026";
+
+function checkPassword() {
+  const val = document.getElementById('password-input').value;
+  if (val === PASSWORD) {
+    document.getElementById('login-screen').style.display = 'none';
+    document.getElementById('app').style.display = 'block';
+    init();
+  } else {
+    document.getElementById('login-error').style.display = 'block';
+    document.getElementById('password-input').value = '';
+    document.getElementById('password-input').focus();
+  }
+}
+
+// ── SECTIONS DATA ──
+let sections = [
+  { id: 'israel',  icon: '🇮🇱', label: 'קרוב לבית',       enabled: true  },
+  { id: 'world',   icon: '🌍', label: 'מבט על העולם',     enabled: true  },
+  { id: 'science', icon: '🔬', label: 'גילוי היום',        enabled: true  },
+  { id: 'tech',    icon: '💡', label: 'זרקור טכנולוגי',   enabled: true  },
+  { id: 'culture', icon: '🎨', label: 'פינת תרבות',       enabled: true  },
+];
+
+let blockedTopics = [];
+let dragSrc = null;
+
+const toneLabels = {
+  1: '🌈 קליל — חדשות טובות בלבד',
+  2: '🌤️ קצת יותר קל מהרגיל',
+  3: '⚖️ מאוזן — ברירת המחדל',
+  4: '🌦️ קצת יותר כבד מהרגיל',
+  5: '🌍 מציאות מלאה — ישרות מקסימלית'
+};
+
+function init() {
+  renderSections();
+  updateTone();
+  updateConfig();
+}
+
+// ── TONE ──
+function updateTone() {
+  const v = document.getElementById('tone-slider').value;
+  document.getElementById('tone-label').textContent = toneLabels[v];
+  updateConfig();
+}
+
+// ── SECTIONS ──
+function renderSections() {
+  const list = document.getElementById('sections-list');
+  list.innerHTML = '';
+  sections.forEach((sec, idx) => {
+    const row = document.createElement('div');
+    row.className = 'section-row';
+    row.draggable = true;
+    row.dataset.idx = idx;
+    row.innerHTML = `
+      <span class="drag-handle">⠿</span>
+      <span class="section-icon-badge">${sec.icon}</span>
+      <div class="section-info">
+        <div class="section-name">
+          <input type="text" value="${sec.label}" onchange="sections[${idx}].label=this.value;updateConfig()">
+        </div>
+      </div>
+      <label class="toggle">
+        <input type="checkbox" ${sec.enabled ? 'checked' : ''} onchange="sections[${idx}].enabled=this.checked;updateConfig()">
+        <span class="toggle-slider"></span>
+      </label>`;
+
+    row.addEventListener('dragstart', e => { dragSrc = idx; row.classList.add('dragging'); });
+    row.addEventListener('dragend', () => { row.classList.remove('dragging'); document.querySelectorAll('.section-row').forEach(r => r.classList.remove('drag-over')); });
+    row.addEventListener('dragover', e => { e.preventDefault(); row.classList.add('drag-over'); });
+    row.addEventListener('dragleave', () => row.classList.remove('drag-over'));
+    row.addEventListener('drop', e => {
+      e.preventDefault();
+      if (dragSrc === null || dragSrc === idx) return;
+      const moved = sections.splice(dragSrc, 1)[0];
+      sections.splice(idx, 0, moved);
+      renderSections();
+      updateConfig();
+    });
+
+    list.appendChild(row);
+  });
+}
+
+// ── BLOCKED TOPICS ──
+function addBlockedTopic() {
+  const input = document.getElementById('block-input');
+  const val = input.value.trim();
+  if (!val || blockedTopics.includes(val)) return;
+  blockedTopics.push(val);
+  input.value = '';
+  renderTags();
+  updateConfig();
+}
+
+function removeBlockedTopic(topic) {
+  blockedTopics = blockedTopics.filter(t => t !== topic);
+  renderTags();
+  updateConfig();
+}
+
+function renderTags() {
+  const container = document.getElementById('blocked-tags');
+  container.innerHTML = blockedTopics.length === 0
+    ? '<span style="color:var(--ink-dim);font-size:12px">אין נושאים חסומים כרגע</span>'
+    : blockedTopics.map(t => `
+        <div class="topic-tag">
+          <span>${t}</span>
+          <span class="remove" onclick="removeBlockedTopic('${t}')">×</span>
+        </div>`).join('');
+}
+
+// ── CONFIG ──
+function buildConfig() {
+  return {
+    tone: parseInt(document.getElementById('tone-slider').value),
+    tone_label: toneLabels[document.getElementById('tone-slider').value],
+    sections: sections.map(s => ({ id: s.id, icon: s.icon, label: s.label, enabled: s.enabled })),
+    blocked_topics: blockedTopics,
+    special_note: document.getElementById('special-note').value.trim(),
+    updated_at: new Date().toISOString()
+  };
+}
+
+function updateConfig() {
+  const cfg = buildConfig();
+  document.getElementById('config-output').textContent = JSON.stringify(cfg, null, 2);
+}
+
+document.getElementById('special-note').addEventListener('input', updateConfig);
+
+function copyConfig() {
+  const text = document.getElementById('config-output').textContent;
+  navigator.clipboard.writeText(text).then(() => {
+    const status = document.getElementById('save-status');
+    status.classList.add('show');
+    setTimeout(() => status.classList.remove('show'), 2500);
+  });
+}
+
+function saveAndCopy() {
+  updateConfig();
+  copyConfig();
+}
+
+// Init tags display
+renderTags();
+</script>
+</body>
+</html>
