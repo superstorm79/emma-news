@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """
 החדשות של אמה — Daily Digest Generator
+Step 1: Search today's news (with web search tool)
+Step 2: Write the digest as JSON (no web search, fast and reliable)
 """
 
 import os
@@ -28,11 +30,11 @@ SECTION_COLORS = {
 }
 
 TONE_MAP = {
-    1:"כתוב גיליון קליל. בחר סיפורים חיוביים בלבד.",
-    2:"כתוב גיליון קצת יותר קל מהרגיל.",
-    3:"כתוב גיליון מאוזן — ברירת המחדל.",
-    4:"כתוב גיליון כנה. כלול חדשות קשות עם הקשר.",
-    5:"כתוב בישרות מקסימלית. אל תסנן.",
+    1:"קליל — חדשות טובות בלבד",
+    2:"קצת יותר קל מהרגיל",
+    3:"מאוזן — ברירת המחדל",
+    4:"כנה — כלול חדשות קשות עם הקשר",
+    5:"ישרות מקסימלית — אל תסנן",
 }
 
 
@@ -40,23 +42,53 @@ def load_config():
     if CONFIG_FILE.exists():
         try:
             cfg = json.loads(CONFIG_FILE.read_text(encoding="utf-8"))
-            print(f"Loaded config: tone={cfg.get('tone',3)}, blocked={cfg.get('blocked_topics',[])}")
+            print(f"Loaded config: tone={cfg.get('tone',3)}")
             return cfg
         except Exception as e:
             print(f"Config error: {e}")
     return {"tone":3,"sections":DEFAULT_SECTIONS,"blocked_topics":[],"special_note":""}
 
 
-def build_prompt(date_str, day_name, cfg):
-    tone = cfg.get("tone", 3)
+def step1_search_news(date_str, day_name, cfg):
+    """Search today's news and return a plain text summary."""
+    client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
+
     blocked = cfg.get("blocked_topics", [])
+    sections = [s for s in cfg.get("sections", DEFAULT_SECTIONS) if s.get("enabled", True)]
+    section_names = ", ".join([s["label"] for s in sections])
+    blocked_line = f"אל תכלול: {', '.join(blocked)}." if blocked else ""
+
+    prompt = f"""חפש חדשות אמיתיות של היום {day_name} {date_str} עבור עיתון ילדים ישראלי.
+אסוף חדשות עבור הסעיפים: {section_names}.
+{blocked_line}
+כתוב תקציר עברי קצר של 3-5 משפטים לכל סעיף. טקסט פשוט בלבד, ללא JSON."""
+
+    text = ""
+    with client.messages.stream(
+        model="claude-sonnet-4-6",
+        max_tokens=2000,
+        tools=[{"type": "web_search_20250305", "name": "web_search"}],
+        messages=[{"role": "user", "content": prompt}]
+    ) as stream:
+        for event in stream:
+            pass
+        message = stream.get_final_message()
+
+    for block in message.content:
+        if hasattr(block, 'text'):
+            text += block.text
+
+    print(f"News summary: {len(text)} chars")
+    return text
+
+
+def step2_write_digest(news_summary, date_str, day_name, cfg):
+    """Write the digest as clean JSON based on the news summary. No web search."""
+    client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
+
+    tone = cfg.get("tone", 3)
     note = cfg.get("special_note", "").strip()
     sections = [s for s in cfg.get("sections", DEFAULT_SECTIONS) if s.get("enabled", True)]
-
-    blocked_line = f"דלג על נושאים: {', '.join(blocked)}." if blocked else ""
-    note_line = f"הערה מיוחדת: {note}" if note else ""
-
-    section_list = "\n".join([f"{i+1}. {s['icon']} {s['label']}" for i,s in enumerate(sections)])
 
     section_json = ",".join([
         f'{{"id":"{s["id"]}","icon":"{s["icon"]}","label":"{s["label"]}",'
@@ -65,24 +97,44 @@ def build_prompt(date_str, day_name, cfg):
         for s in sections
     ])
 
-    return f"""אתה עורך עיתון ילדים בעברית. הקוראת היא ילדה בת 10 חכמה וסקרנית מישראל.
-תאריך: {day_name}, {date_str}.
+    note_line = f"הערה: {note}" if note else ""
 
-עקרונות: קרא לדברים בשמם. פנה לתגובה האנושית. אל תציין מספרי נפגעים. אי-ודאות היא כנה.
-טון: {TONE_MAP[tone]}
-{blocked_line}
-{note_line}
+    prompt = f"""אתה עורך עיתון ילדים בעברית. הקוראת היא ילדה בת 10 חכמה מישראל.
+תאריך: {day_name}, {date_str}. טון: {TONE_MAP[tone]}. {note_line}
 
-סעיפים לכתוב בסדר הזה:
-{section_list}
+להלן תקציר חדשות היום:
+{news_summary}
 
-חפש חדשות אמיתיות של היום וכתוב את הגיליון.
-השתמש ב-[HONEST]...[/HONEST] לעובדה מרכזית ו-[OPENQ]...[/OPENQ] למה שלא ידוע.
+כתוב גיליון ילדים מבוסס על החדשות האלה.
+עקרונות: קרא לדברים בשמם. פנה לתגובה האנושית. אל תציין נפגעים. אי-ודאות היא כנה.
+השתמש ב-[HONEST]טקסט[/HONEST] לעובדה מרכזית ו-[OPENQ]טקסט[/OPENQ] למה שלא ידוע.
 
-החזר JSON בלבד — ללא טקסט לפניו או אחריו, ללא ```.
-חשוב: אל תשתמש במרכאות כפולות בתוך ערכי הטקסט. השתמש ב-׳ או ב-״ במקום.
+החזר JSON בלבד. אסור להשתמש במרכאות " בתוך ערכי הטקסט — השתמש ב-׳ בלבד.
 
 {{"sections":[{section_json}],"word_of_day":{{"word":"מילה","definition":"הגדרה"}},"think_question":"שאלה"}}"""
+
+    response = client.messages.create(
+        model="claude-sonnet-4-6",
+        max_tokens=3000,
+        messages=[{"role": "user", "content": prompt}]
+    )
+
+    text = response.content[0].text.strip()
+    print(f"Digest text: {len(text)} chars")
+
+    if "```" in text:
+        start = text.find("```")
+        end   = text.rfind("```")
+        if start != end:
+            text = text[start:end].split("\n", 1)[1]
+
+    text = text.strip()
+    start = text.find("{")
+    end   = text.rfind("}")
+    if start != -1 and end > start:
+        text = text[start:end+1]
+
+    return json.loads(text)
 
 
 def render_story_body(body):
@@ -104,9 +156,12 @@ def render_html(data, date_str, day_name):
         <div class="story-headline">{story['headline']}</div>
         <div class="story-body">{body}</div>
         <div class="rating"><span class="rating-label">דרגי</span>
-          <span class="star" onclick="rate(this)">★</span><span class="star" onclick="rate(this)">★</span>
-          <span class="star" onclick="rate(this)">★</span><span class="star" onclick="rate(this)">★</span>
-          <span class="star" onclick="rate(this)">★</span></div>
+          <span class="star" onclick="rate(this)">★</span>
+          <span class="star" onclick="rate(this)">★</span>
+          <span class="star" onclick="rate(this)">★</span>
+          <span class="star" onclick="rate(this)">★</span>
+          <span class="star" onclick="rate(this)">★</span>
+        </div>
       </div>"""
         sections_html += f"""
   <div class="section" style="--section-color:{section['color']}">
@@ -213,51 +268,6 @@ function rate(star){{
 </html>"""
 
 
-def call_claude(prompt, attempt=1):
-    client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
-
-    if attempt > 1:
-        time.sleep(30)  # wait before retry to avoid rate limits
-
-    text = ""
-    with client.messages.stream(
-        model="claude-sonnet-4-6",
-        max_tokens=3000,
-        tools=[{"type": "web_search_20250305", "name": "web_search"}],
-        messages=[{"role": "user", "content": prompt}]
-    ) as stream:
-        for event in stream:
-            pass
-        message = stream.get_final_message()
-
-    for block in message.content:
-        if hasattr(block, 'text'):
-            text += block.text
-
-    print(f"Response length: {len(text)} chars")
-    text = text.strip()
-
-    if "```" in text:
-        start = text.find("```")
-        end   = text.rfind("```")
-        if start != end:
-            text = text[start:end].split("\n", 1)[1]
-
-    text = text.strip()
-    start = text.find("{")
-    end   = text.rfind("}")
-    if start != -1 and end > start:
-        text = text[start:end+1]
-
-    try:
-        return json.loads(text)
-    except json.JSONDecodeError as e:
-        if attempt < 3:
-            print(f"JSON error ({e}), waiting 30s then retrying (attempt {attempt+1})...")
-            return call_claude(prompt, attempt + 1)
-        raise ValueError(f"Failed after 3 attempts: {e}")
-
-
 def main():
     import zoneinfo
     tz = zoneinfo.ZoneInfo("Asia/Jerusalem")
@@ -273,7 +283,14 @@ def main():
     cfg = load_config()
     print(f"Generating digest for {date_str}...")
 
-    data = call_claude(build_prompt(date_str, day_name, cfg))
+    # Step 1: search news (with web search, plain text output)
+    print("Step 1: Searching today's news...")
+    news_summary = step1_search_news(date_str, day_name, cfg)
+
+    # Step 2: write digest as JSON (no web search, fast and reliable)
+    print("Step 2: Writing digest...")
+    data = step2_write_digest(news_summary, date_str, day_name, cfg)
+
     html = render_html(data, date_str, day_name)
 
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
